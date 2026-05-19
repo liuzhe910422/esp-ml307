@@ -148,20 +148,14 @@ bool WebSocket::Connect(const char* uri) {
     }
     request += "\r\n";
 
-    if (tcp_->Send(request) < 0) {
-        ESP_LOGE(TAG, "Failed to send WebSocket handshake request");
-        return false;
-    }
-
-    // 清除事件位
+    // 清除事件位（回调尚未注册，不会有新事件写入）
     xEventGroupClearBits(handshake_event_group_, HANDSHAKE_SUCCESS_BIT | HANDSHAKE_FAILED_BIT);
-    
-    // 设置数据接收回调来处理握手和后续的WebSocket帧
+
+    // 注册回调后再发送，避免响应在回调注册前到达被丢弃
     tcp_->OnStream([this](const std::string& data) {
         this->OnTcpData(data);
     });
 
-    // 设置断开连接回调
     tcp_->OnDisconnected([this]() {
         if (connected_) {
             connected_ = false;
@@ -170,6 +164,11 @@ bool WebSocket::Connect(const char* uri) {
             }
         }
     });
+
+    if (tcp_->Send(request) < 0) {
+        ESP_LOGE(TAG, "Failed to send WebSocket handshake request");
+        return false;
+    }
 
     // 等待握手完成，超时时间10秒
     EventBits_t bits = xEventGroupWaitBits(
