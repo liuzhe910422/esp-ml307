@@ -148,14 +148,15 @@ bool WebSocket::Connect(const char* uri) {
     }
     request += "\r\n";
 
-    // 清除事件位（回调尚未注册，不会有新事件写入）
+    // 清除事件位
     xEventGroupClearBits(handshake_event_group_, HANDSHAKE_SUCCESS_BIT | HANDSHAKE_FAILED_BIT);
 
-    // 注册回调后再发送，避免响应在回调注册前到达被丢弃
+    // 设置数据接收回调来处理握手和后续的WebSocket帧
     tcp_->OnStream([this](const std::string& data) {
         this->OnTcpData(data);
     });
 
+    // 设置断开连接回调
     tcp_->OnDisconnected([this]() {
         if (connected_) {
             connected_ = false;
